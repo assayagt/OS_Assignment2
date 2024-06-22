@@ -22,6 +22,10 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int channel_create(void);
+int channel_put(int, int);
+int channel_take(int, int*);
+int channel_destroy(int);
 
 // ulib.c
 int stat(const char*, struct stat*);
