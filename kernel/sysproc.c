@@ -89,3 +89,41 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// Create a new channel 
+uint64 
+sys_channel_create(void) { 
+  return channel_create(); 
+} 
+
+// Put data into a channel 
+uint64 
+sys_channel_put(void) { 
+  int cd, data; 
+  argint(0, &cd);
+  argint(1, &data); 
+  return channel_put(cd, data); 
+} 
+  
+// Take data from a channel 
+uint64 
+sys_channel_take(void) {
+  int cd; 
+  uint64 data; 
+  argint(0, &cd);
+  argaddr(1, &data); 
+  int d; 
+  if (channel_take(cd, &d) < 0) 
+    return -1; 
+  if (copyout(myproc()->pagetable, data, (char*)&d, sizeof(d)) < 0) 
+    return -1; 
+  return 0; 
+} 
+    
+// Destroy a channel 
+uint64 
+sys_channel_destroy(void) {
+  int cd; 
+  argint(0, &cd);
+  return channel_destroy(cd);
+}  
