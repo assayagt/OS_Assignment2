@@ -10,6 +10,9 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
+#define NCHANNEL 16
+struct channel channels[NCHANNEL];
+
 struct proc *initproc;
 
 int nextpid = 1;
@@ -380,6 +383,13 @@ exit(int status)
 
   release(&wait_lock);
 
+
+  for(int i = 0; i < NCHANNEL; i++){
+    if(channels[i].creator_pid == p->pid){
+      channel_destroy(i);
+    }
+  }
+
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");
@@ -475,7 +485,7 @@ scheduler(void)
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
 // kernel thread, not this CPU. It should
-// be proc->intena and proc->noff, but that would
+// be proc->intena and proc->noff, but that wfeould
 // break in the few places where a lock is held but
 // there's no process.
 void
@@ -595,7 +605,15 @@ kill(int pid)
         // Wake process from sleep().
         p->state = RUNNABLE;
       }
+      
       release(&p->lock);
+
+      for(int i = 0; i < NCHANNEL; i++){
+        if(channels[i].creator_pid == p->pid){
+          channel_destroy(i);
+        }
+      }
+
       return 0;
     }
     release(&p->lock);
@@ -679,5 +697,99 @@ procdump(void)
       state = "???";
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
+  }
+}
+
+
+int channel_create(void){
+  struct proc *p = myproc();   
+  for (int i = 0; i < NCHANNEL; i++) {     
+    acquire(&channels[i].lock);    
+    if (!channels[i].used) {       
+      channels[i].used = 1;       
+      channels[i].full = 0;       
+      channels[i].creator_pid = p->pid;       
+      release(&channels[i].lock);       
+      return i; // Return the channel descriptor 
+    } 
+      release(&channels[i].lock);
+    } 
+    return -1; // No available channel
+}
+
+// Put data into a channel
+int channel_put(int cd, int data)
+{
+  if (cd < 0 || cd >= NCHANNEL) return -1;
+
+  acquire(&channels[cd].lock);
+  if (!channels[cd].used) {
+    release(&channels[cd].lock);
+    return -1;
+  }
+
+  while (channels[cd].full) {
+    sleep(&channels[cd], &channels[cd].lock);
+  }
+
+  channels[cd].data = data;
+  channels[cd].full = 1;
+  wakeup(&channels[cd]);
+  release(&channels[cd].lock);
+
+  return 0;
+}
+
+// Take data from a channel
+int channel_take(int cd, int* data)
+{
+  if (cd < 0 || cd >= NCHANNEL) return -1;
+
+  acquire(&channels[cd].lock);
+  if (!channels[cd].used) {
+    release(&channels[cd].lock);
+    return -1;
+  }
+
+  while (!channels[cd].full) {
+    sleep(&channels[cd], &channels[cd].lock);
+  }
+
+  *data = channels[cd].data;
+  channels[cd].full = 0;
+  wakeup(&channels[cd]);
+  release(&channels[cd].lock);
+
+  return 0;
+}
+
+// Destroy a channel
+int channel_destroy(int cd)
+{
+  if (cd < 0 || cd >= NCHANNEL) return -1;
+
+  acquire(&channels[cd].lock);
+  if (!channels[cd].used) {
+    release(&channels[cd].lock);
+    return -1;
+  }
+
+  channels[cd].used = 0;
+  channels[cd].full = 0;
+  channels[cd].creator_pid = -1;
+  wakeup(&channels[cd]);
+  release(&channels[cd].lock);
+
+  return 0;
+}
+
+void channelsInit()
+{
+  // Initialize channels
+  for (int i = 0; i < NCHANNEL; i++) {
+    initlock(&channels[i].lock, "channel");
+    channels[i].full = 0;
+    channels[i].used = 0;
+    channels[i].creator_pid = -1;
   }
 }
