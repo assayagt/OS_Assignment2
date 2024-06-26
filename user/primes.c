@@ -2,10 +2,8 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-
 #define NCHANNEL 2
 #define MAX_PRIMES 100
-
 
 int is_prime(int n) {
     if (n <= 1) return 0;
@@ -61,6 +59,8 @@ int main(int argc, char *argv[]) {
         num_checkers = atoi(argv[1]);
     }
 
+    //int n =3;
+    //int t = 0;
     while(1)
     {
         int channel1 = channel_create();
@@ -70,27 +70,36 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
 
+        if(fork() == 0)
+        {
+            printer(channel2);
+            exit(0);
+        }
+        else
+        {
+            int pid;
+            for (int i = 0; i < num_checkers; i++) {
+                pid = fork();
+                if (pid == 0) {
+                    checker(i, channel1, channel2);
+                    exit(0);
+                }
+            }
 
-        for (int i = 0; i < num_checkers; i++) {
-            if (fork() == 0) {
-                checker(i, channel1, channel2);
+            generator(channel1);
+            //for(int i=0; i<num_checkers + 1; i++)
+            //{
+           //     wait(0);
+            //}
+            printf("Do you want to restart the system? (y/n): ");
+            char buf[10];
+            gets(buf, 10);
+            if (buf[0] != 'y' && buf[0] != 'Y') {
+                break;
             }
         }
-
-        if(fork() == 0){
-            printer(channel2);
-        }
-        
-        generator(channel1);
-
-        printf("Do you want to restart the system? (y/n): ");
-        char buf[10];
-        gets(buf, 10);
-        if (buf[0] != 'y' && buf[0] != 'Y') {
-            break;
-        }
-        
     }
-
+    
     exit(0);
 }
+

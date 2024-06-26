@@ -10,7 +10,7 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
-#define NCHANNEL 16
+#define NCHANNEL 64
 struct channel channels[NCHANNEL];
 
 struct proc *initproc;
