@@ -702,13 +702,16 @@ procdump(void)
 
 
 int channel_create(void){
+
   struct proc *p = myproc();   
-  for (int i = 0; i < NCHANNEL; i++) {     
+  for (int i = 0; i < NCHANNEL; i++) {  
+    //lock the currently checked channel   
     acquire(&channels[i].lock);    
-    if (!channels[i].used) {       
-      channels[i].used = 1;       
+    if (!channels[i].used) {
+      //set channel to be used, empty from data and current pid as creator
+      channels[i].used = 1;
       channels[i].full = 0;       
-      channels[i].creator_pid = p->pid;       
+      channels[i].creator_pid = p->pid;     
       release(&channels[i].lock);       
       return i; // Return the channel descriptor 
     } 
@@ -722,16 +725,21 @@ int channel_put(int cd, int data)
 {
   if (cd < 0 || cd >= NCHANNEL) return -1;
 
+  //lock currently checked channel
   acquire(&channels[cd].lock);
+
+  //if channel is not in use return -1
   if (!channels[cd].used) {
     release(&channels[cd].lock);
     return -1;
   }
 
+  //if channel full wait until its not full
   while (channels[cd].full) {
     sleep(&channels[cd], &channels[cd].lock);
   }
 
+  //put data into channel
   channels[cd].data = data;
   channels[cd].full = 1;
   wakeup(&channels[cd]);
@@ -745,16 +753,21 @@ int channel_take(int cd, int* data)
 {
   if (cd < 0 || cd >= NCHANNEL) return -1;
 
+  //lock currently checked channel
   acquire(&channels[cd].lock);
+
+  //if channel is not in use return -1
   if (!channels[cd].used) {
     release(&channels[cd].lock);
     return -1;
   }
 
+  //if channel empty wait until its full
   while (!channels[cd].full) {
     sleep(&channels[cd], &channels[cd].lock);
   }
 
+  //take data from channel
   *data = channels[cd].data;
   channels[cd].full = 0;
   wakeup(&channels[cd]);
@@ -768,12 +781,16 @@ int channel_destroy(int cd)
 {
   if (cd < 0 || cd >= NCHANNEL) return -1;
 
+  //lock currently checked channel
   acquire(&channels[cd].lock);
+
+  //if channel is not in use return -1
   if (!channels[cd].used) {
     release(&channels[cd].lock);
     return -1;
   }
 
+  //reset all channel fields
   channels[cd].used = 0;
   channels[cd].full = 0;
   channels[cd].creator_pid = -1;
